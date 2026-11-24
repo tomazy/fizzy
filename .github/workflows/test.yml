@@ -55,13 +55,17 @@ jobs:
     steps:
       - name: Install system packages
         timeout-minutes: 10
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libsqlite3-0 libvips curl ffmpeg
+        # The runner image ships a MySQL server the tests don't use (they use the mysql service above).
+        # Installing libmysqlclient-dev upgrades it, and its postinst fails on the runner (8.4.13), so drop it first.
+        run: |
+          sudo apt-get purge -y mysql-server mysql-server-core
+          sudo apt-get update && sudo apt-get install --no-install-recommends -y libmysqlclient-dev libsqlite3-0 libvips curl ffmpeg
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1.316.0
+      - uses: ruby/setup-ruby@f9c4492e86def3e644ab32a0ef185eda5b0c20d0 # v1.342.0
         with:
           ruby-version: .ruby-version
           bundler-cache: true
@@ -71,3 +75,11 @@ jobs:
 
       - name: Run system tests
         run: bin/rails test:system
+
+      - name: Upload Trusted Types inventory
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trusted-types-violations-${{ inputs.saas && 'saas' || 'oss' }}-${{ matrix.db_adapter }}
+          path: tmp/trusted_types_violations.json
+          if-no-files-found: ignore
